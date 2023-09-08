@@ -2,9 +2,7 @@ const express = require("express");
 const router = express.Router();
 require("dotenv").config();
 const { v4: uuidv4 } = require("uuid");
-const stripe = require("stripe")(
-  "sk_test_51NgNrSSD2zvAhNC6BFC7CtuqYQkpU8tb11AfL9uI49eMjYwbw8pac3Y7jGOs50CpkAkSAUWXuaUvFtXFxBupW1Zx00gzHrk6uP"
-);
+const stripe = require("stripe")(process.env.STRIPE);
 const Order = require("../models/orderModel");
 
 router.post("/placeorder", async (req, res) => {
@@ -16,10 +14,10 @@ router.post("/placeorder", async (req, res) => {
       source: token.id,
     });
 
-    const payment = await stripe.charges.create(
+    const payment = await stripe.paymentIntents.create(
       {
         amount: subtotal * 100,
-        currency: "inr",
+        currency: "INR",
         customer: customer.id,
         receipt_email: token.email,
       },
@@ -30,9 +28,9 @@ router.post("/placeorder", async (req, res) => {
 
     if (payment) {
       const neworder = new Order({
-        name: currentUser.name,
-        email: currentUser.email,
-        userid: currentUser._id,
+        name: token.card.name,
+        email: token.email,
+        userid: token.card.id,
         orderItems: cartItems,
         orderAmount: subtotal,
         shippingAddress: {
@@ -41,7 +39,7 @@ router.post("/placeorder", async (req, res) => {
           country: token.card.address_country,
           pincode: token.card.address_zip,
         },
-        transactionId: payment.source.id,
+        // transactionId: payment.source.id,
       });
 
       neworder.save();
@@ -74,15 +72,4 @@ router.get("/getallorders", async (req, res) => {
   }
 });
 
-router.post("/deliverorder", async (req, res) => {
-  const orderid = req.body.orderid;
-  try {
-    const order = await Order.findOne({ _id: orderid });
-    order.isDelivered = true;
-    await order.save();
-    res.send("Order Delivered Successfully");
-  } catch (error) {
-    return res.status(400).json({ message: error });
-  }
-});
 module.exports = router;
